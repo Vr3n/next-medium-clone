@@ -1,15 +1,47 @@
+import { useState } from "react";
 import { GetStaticProps, NextPage } from "next";
 import Header from "../../components/Header";
 import { sanityClient, urlFor } from "../../sanity";
 import { Post } from "../../typings";
 import Head from "next/head";
 import PortableText from "react-portable-text";
+import { useForm, SubmitHandler } from "react-hook-form";
 
 interface Props {
   post: Post;
 }
 
+interface IFormInput {
+  _id: string;
+  name: string;
+  email: string;
+  comment: string;
+}
+
 const Post: NextPage<Props> = ({ post }) => {
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
+
+  const onSubmit: SubmitHandler<IFormInput> = async (data) => {
+    await fetch("/api/createComment", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+      .then(() => {
+        console.log(data);
+        setIsSubmitted(true);
+      })
+      .catch((error) => {
+        console.log(error);
+        setIsSubmitted(false);
+      });
+  };
+
   return (
     <>
       <Head>
@@ -22,7 +54,7 @@ const Post: NextPage<Props> = ({ post }) => {
           alt={post.title}
           className="w-full h-60 object-cover"
         />
-        <article className="max-w-3xl mx-auto">
+        <article className="max-w-3xl mx-auto px-4">
           <h1 className="text-3xl mt-10 mb-3">{post.title}</h1>
           <h2 className="text-xl font-light text-gray-500 mb-2">
             {post.description}
@@ -66,6 +98,87 @@ const Post: NextPage<Props> = ({ post }) => {
             />
           </div>
         </article>
+        <hr className="max-w-lg mx-auto border border-yellow-500" />
+        {isSubmitted ? (
+          <div className="flex flex-col px-10 py-10 my-10 bg-yellow-500 text-white max-w-2xl mx-auto text-center">
+            <h3 className="text-2xl text-black font-bold">
+              Thank you For Submitting your comment!{" "}
+            </h3>
+            <p>Once it has been approved, it will apprear below!</p>
+          </div>
+        ) : (
+          <form
+            className="flex flex-col p-5 my-10 max-w-2xl mx-auto"
+            onSubmit={handleSubmit(onSubmit)}
+          >
+            <h3 className="text-sm text-yellow-500">Enjoyed this article?</h3>
+            <h4 className="text-3xl font-bold">Leave a comment below</h4>
+            <hr className="py-3 mt-2" />
+            <input
+              type="hidden"
+              {...register("_id")}
+              value={post._id}
+              name="_id"
+            />
+            <label className="block mb-5">
+              <span className="text-gray-700">Name</span>
+              <input
+                {...register("name", { required: true })}
+                className="shadow border py-2 px-3 rounded form-input mt-1 block w-full outline-none ring-yellow-500 focus:ring"
+                placeholder="Your name"
+                type="text"
+              />
+            </label>
+            <label className="block mb-5">
+              <span className="text-gray-700">Email</span>
+              <input
+                {...register("email", { required: true })}
+                className="shadow border py-2 px-3 rounded form-input mt-1 block w-full outline-none ring-yellow-500 focus:ring"
+                placeholder="abc@example.com"
+                type="email"
+              />
+            </label>
+            <label className="block mb-5">
+              <span className="text-gray-700">Comment</span>
+              <textarea
+                {...register("comment", { required: true })}
+                className="shadow border rounded form-textarea py-2 px-3 mt-1 block w-full outline-none ring-yellow-500 focus:ring"
+                placeholder="Your name"
+                rows={8}
+              />
+            </label>
+            <ul>
+              {errors.name && (
+                <li className="text-red-500">The Name Field is required</li>
+              )}
+              {errors.comment && (
+                <li className="text-red-500">The Comment Field is required</li>
+              )}
+              {errors.email && (
+                <li className="text-red-500">The Email Field is required</li>
+              )}
+            </ul>
+            <input
+              type="submit"
+              className="shadow bg-yellow-500 px-2 py-4 rounded-md hover:bg-yellow-400 focus:shadow-outline focus:outline-none text-white font-bold"
+            />
+          </form>
+        )}
+        {/* comments */}
+        <div className="flex flex-col p-10 my-10 max-w-2xl mx-auto shadow shadow-yellow-500">
+          <h3 className="text-4xl">Comments</h3>
+          <hr className="pb-2" />
+          {post.comments.map((comment) => {
+            return (
+              <div key={comment._id}>
+                <p>
+                  <span className="text-yellow-500">{comment.name}</span>:{" "}
+                  {comment.comment}
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </main>
     </>
   );
@@ -105,6 +218,11 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
                 name,
                 image,
             },
+            'comments': *[
+              _type == "comment" &&
+              post._ref == ^._id &&
+              approved == true
+            ],
             description,
             mainImage,
             slug,
